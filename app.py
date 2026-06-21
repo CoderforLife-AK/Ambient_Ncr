@@ -24,7 +24,10 @@ st.markdown("""
 @st.cache_resource(show_spinner=False)
 def train_from_local_zip():
     try:
-        zip_path = "delhi_pollution.zip" # Change this if your uploaded ZIP file has a different name
+        # Force Python to find the absolute directory of your app.py file
+        import os
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        zip_path = os.path.join(BASE_DIR, "delhi_pollution.zip")
         
         # Open and extract the CSV file straight from the zip file instantly
         with zipfile.ZipFile(zip_path, 'r') as z:
