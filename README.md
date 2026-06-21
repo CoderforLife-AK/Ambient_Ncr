@@ -8,7 +8,7 @@ Built as a core project milestone for the **1M1B Sustainability Internship Frame
 ---
 
 ## 🔗 Live Application Link
-👉 **[Click Here to Open the Live Prototype Dashboard](https://share.streamlit.io/)** *(Replace this text with your actual Streamlit live URL)*
+👉 **https://ambientncr-mlproject.streamlit.app/
 
 ---
 
@@ -31,4 +31,7 @@ The system uses a lightweight, optimized micro-architecture for instant cloud ex
 
 ## 🧠 How the Machine Learning Core Works
 
-Instead of relying on slow external server connections, Ambient-NCR processes data natively in the cloud container:
+Instead of relying on slow external server connections, Ambient-NCR processes data natively in the cloud container:[delhi_pollution.zip] ──> Extracts CSV ──> One-Hot Encodes Regions ──> Trains Random Forest ──> Active Model Core
+1. **Data Ingestion:** When the application boots, it automatically extracts and unzips a 5 MB localized dataset repository (`delhi_pollution.zip`) directly in system memory.
+2. **Preprocessing:** It automatically cleans column configurations, handles missing null thresholds, and dynamically sets up regional tracking labels via **One-Hot Encoding**.
+3. **Optimized Training:** It initializes a high-performance `RandomForestRegressor` ensemble model. To ensure the cloud link loads instantly, the ensemble structure is highly optimized to map splits seamlessly in 1–2 seconds.
