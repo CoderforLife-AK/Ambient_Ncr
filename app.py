@@ -24,8 +24,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. CACHED CLOUD TRAINING PIPELINE (Runs only once when app boots up)
-@st.cache_resource
+# 2. CACHED CLOUD TRAINING PIPELINE (Silenced hash warnings)
+@st.cache_resource(show_spinner=False)
 def initialize_and_train_pipeline():
     try:
         # Download real Delhi AQI dataset straight from Kaggle in the cloud
@@ -56,13 +56,13 @@ def initialize_and_train_pipeline():
         elif 'city' in df_raw.columns:
             df['Region'] = df_raw['city']
         else:
-            # Fallback regional arrays
             df['Region'] = np.random.choice(['Central Delhi', 'Noida', 'Gurugram', 'Ghaziabad'], len(df_raw))
             
-        df_encoded = pd.get_dummies(df, columns=['Region'], drop_first=False)
+        # .astype(float) enforces 1.0/0.0 numeric values for sklearn compatibility
+        df_encoded = pd.get_dummies(df, columns=['Region'], drop_first=False).astype(float)
         
         X = df_encoded.drop(columns=['AQI'])
-        y = df_encoded['AQI']
+        y = df_encoded['AQI'].astype(int)
         
         # Train model in cloud container memory
         model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -105,7 +105,6 @@ left_panel, right_panel = st.columns([5, 7], gap="large")
 with left_panel:
     st.subheader("Environmental Parameters")
     with st.form("aqi_form"):
-        # Automatically lists all regions found in your dataset!
         selected_region = st.selectbox("Target Monitoring Region", options=regions_trained)
         
         c1, c2 = st.columns(2)
@@ -122,7 +121,8 @@ with left_panel:
         with c4:
             humidity = st.number_input("Humidity (%)", min_value=0.0, max_value=100.0, value=55.0)
             
-        submit = st.form_submit_with_ui_button("Analyze & Forecast AQI", type="primary")
+        # Corrected native function signature name here
+        submit = st.form_submit_button("Analyze & Forecast AQI", type="primary")
 
 with right_panel:
     if submit and model is not None:
