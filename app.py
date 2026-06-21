@@ -1,11 +1,7 @@
 import streamlit as st
-import os
-import glob
+import zipfile
 import numpy as np
 import pandas as pd
-import kagglehub
-import traceback
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 
 # 1. PAGE LAYOUT CONFIGURATION
@@ -24,20 +20,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. CACHED CLOUD TRAINING PIPELINE (Silenced hash warnings)
+# 2. FAST IN-MEMORY ZIP TRAINING PIPELINE
 @st.cache_resource(show_spinner=False)
-def initialize_and_train_pipeline():
+def train_from_local_zip():
     try:
-        # Download real Delhi AQI dataset straight from Kaggle in the cloud
-        path = kagglehub.dataset_download("vishardmehta/delhi-pollution-aqi-dataset")
-        csv_files = glob.glob(os.path.join(path, "*.csv"))
-        if not csv_files:
-            raise FileNotFoundError("No CSV file found in downloaded repository.")
-            
-        df_raw = pd.read_csv(csv_files[0])
+        zip_path = "delhi_pollution.zip" # Change this if your uploaded ZIP file has a different name
+        
+        # Open and extract the CSV file straight from the zip file instantly
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            csv_name = [f for f in z.namelist() if f.endswith('.csv')][0]
+            with z.open(csv_name) as f:
+                df_raw = pd.read_csv(f)
+                
         df_raw.columns = df_raw.columns.str.strip()
         
-        # Build features safely matching training sequences
+        # Build features safely matching your training patterns
         df = pd.DataFrame()
         df['PM2_5'] = df_raw.get('PM2.5', df_raw.get('pm25', np.random.uniform(20, 450, len(df_raw))))
         df['PM10'] = df_raw.get('PM10', df_raw.get('pm10', np.random.uniform(40, 500, len(df_raw))))
@@ -53,47 +50,40 @@ def initialize_and_train_pipeline():
         
         if 'Region' in df_raw.columns:
             df['Region'] = df_raw['Region']
-        elif 'city' in df_raw.columns:
-            df['Region'] = df_raw['city']
         else:
             df['Region'] = np.random.choice(['Central Delhi', 'Noida', 'Gurugram', 'Ghaziabad'], len(df_raw))
             
-        # .astype(float) enforces 1.0/0.0 numeric values for sklearn compatibility
         df_encoded = pd.get_dummies(df, columns=['Region'], drop_first=False).astype(float)
         
         X = df_encoded.drop(columns=['AQI'])
         y = df_encoded['AQI'].astype(int)
         
-        # Train model in cloud container memory
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        # Optimization: Train a fast, high-performance tree model instantly
+        model = RandomForestRegressor(n_estimators=20, max_depth=12, random_state=42, n_jobs=-1)
         model.fit(X, y)
         
-        # Pull distinct target regions dynamically
         regions_list = [col.replace('Region_', '') for col in X.columns if col.startswith('Region_')]
-        if not regions_list:
-            regions_list = ['Central Delhi', 'Noida', 'Gurugram', 'Ghaziabad']
-            
         return model, X.columns.tolist(), regions_list
     except Exception as e:
-        st.error(f"Cloud setup crash: {e}")
-        return None, [], []
+        st.error(f"Error reading local ZIP file: {e}")
+        return None, [], ['Central Delhi', 'Noida', 'Gurugram', 'Ghaziabad']
+
+# Tiny loading spinner that finishes almost instantly
+with st.spinner("Synchronizing structural neural matrices..."):
+    model, model_features, regions_trained = train_from_local_zip()
 
 # Human-readable warning thresholds mapping
 def get_health_advisory(aqi: int) -> dict:
     if aqi <= 50:
         return {"cat": "Good", "color": "#00e400", "adv": "Air quality is satisfactory. Perfect day for outdoor physical activities."}
     elif aqi <= 100:
-        return {"cat": "Satisfactory / Moderate", "color": "#e5c100", "adv": "Acceptable air quality. However, unusually sensitive individuals should minimize heavy outdoor exertion."}
+        return {"cat": "Satisfactory / Moderate", "color": "#e5c100", "adv": "Acceptable air quality. Unusual sensitive individuals should minimize outdoor exertion."}
     elif aqi <= 200:
-        return {"cat": "Poor", "color": "#ff7e00", "adv": "Breathing discomfort possible for children, elderly, and those with lung/heart disease. Consider wearing an N95 mask outside."}
+        return {"cat": "Poor", "color": "#ff7e00", "adv": "Breathing discomfort possible. Consider wearing an N95 mask outside."}
     elif aqi <= 300:
-        return {"cat": "Very Poor", "color": "#ff0000", "adv": "Health alert! Everyone may experience health effects. Avoid prolonged outdoor exposure; keep windows closed."}
+        return {"cat": "Very Poor", "color": "#ff0000", "adv": "Health alert! Avoid prolonged outdoor exposure; keep windows closed."}
     else:
-        return {"cat": "Severe / Hazardous", "color": "#7e0023", "adv": "Emergency conditions. High risk of respiratory impact for the entire population. Avoid all outdoor physical activity."}
-
-# Run cloud initialization spinner
-with st.spinner("Downloading dataset and initializing predictive brain framework..."):
-    model, model_features, regions_trained = initialize_and_train_pipeline()
+        return {"cat": "Severe / Hazardous", "color": "#7e0023", "adv": "Emergency conditions. Avoid all outdoor physical activity."}
 
 # 3. GRAPHICAL USER INTERFACE
 st.title("Ambient-NCR 🍃")
@@ -121,13 +111,11 @@ with left_panel:
         with c4:
             humidity = st.number_input("Humidity (%)", min_value=0.0, max_value=100.0, value=55.0)
             
-        # Corrected native function signature name here
         submit = st.form_submit_button("Analyze & Forecast AQI", type="primary")
 
 with right_panel:
     if submit and model is not None:
         try:
-            # Build inference vector matrix template
             input_dict = {col: 0.0 for col in model_features}
             input_dict['PM2_5'] = float(pm2_5)
             input_dict['PM10'] = float(pm10)
@@ -143,7 +131,6 @@ with right_panel:
             predicted_aqi = int(np.clip(model.predict(input_df)[0], 0, 500))
             advisory = get_health_advisory(predicted_aqi)
             
-            # Interactive metric template layout card injection
             st.markdown(f"""
                 <div style="border: 2px solid {advisory['color']}; background-color: {advisory['color']}15; padding: 25px; border-radius: 15px; margin-bottom: 20px;">
                     <p style="text-transform: uppercase; font-size: 0.75rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.05em; margin: 0;">Predicted Output Index</p>
@@ -161,9 +148,8 @@ with right_panel:
             """, unsafe_allow_html=True)
             
             st.info(f"**AI-Generated Health Advisory:** {advisory['adv']}")
-            
             st.markdown("---")
-            st.caption("⚡ Framework Infrastructure: Dynamic On-Demand Scikit-Learn Container Pipeline | SDG 11.6 Target Compliance")
+            st.caption("⚡ Framework Infrastructure: High-Speed Embedded Scikit-Learn Model Pipeline | SDG 11.6 Target Compliance")
         except Exception as eval_err:
             st.error(f"Inference error: {eval_err}")
     else:
